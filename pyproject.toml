@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metric-guard"
+version = "0.4.1"
+description = "Automated data quality monitoring for compliance and regulatory metrics pipelines"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Remi Ounadjela", email = "remi.ounadjela@gmail.com"},
+]
+keywords = ["data-quality", "compliance", "metrics", "monitoring", "validation", "regulatory"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.0,<3.0",
+    "click>=8.1",
+    "rich>=13.0",
+    "scipy>=1.11",
+    "croniter>=1.4",
+    "pyyaml>=6.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1.0",
+]
+slack = [
+    "requests>=2.31",
+]
+pagerduty = [
+    "requests>=2.31",
+]
+
+[project.scripts]
+metric-guard = "metric_guard.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/RemiOunadjela/metric-guard"
+Repository = "https://github.com/RemiOunadjela/metric-guard"
+Issues = "https://github.com/RemiOunadjela/metric-guard/issues"
+
+[tool.setuptools.packages.find]
+include = ["metric_guard*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
