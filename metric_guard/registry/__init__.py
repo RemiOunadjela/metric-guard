@@ -1,6 +1,4 @@
-"""metric-guard: Automated data quality for compliance metrics."""
-
-__version__ = "0.1.0"
+"""Metric registry: define, load, and track metric definitions."""
 
 from metric_guard.registry.metric import MetricDefinition, Severity, UpdateFrequency
 
