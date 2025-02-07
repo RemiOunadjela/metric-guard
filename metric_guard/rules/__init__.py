@@ -3,6 +3,7 @@
 from metric_guard.rules.base import RuleStatus, ValidationResult, ValidationRule
 from metric_guard.rules.completeness import CompletenessRule
 from metric_guard.rules.consistency import ConsistencyRule
+from metric_guard.rules.custom import rule
 from metric_guard.rules.distribution import DistributionRule
 from metric_guard.rules.freshness import FreshnessRule
 from metric_guard.rules.volume import VolumeRule
@@ -16,4 +17,5 @@ __all__ = [
     "VolumeRule",
     "DistributionRule",
     "ConsistencyRule",
+    "rule",
 ]
