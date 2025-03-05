@@ -1,0 +1,183 @@
+metrics:
+  - name: content_violation_rate
+    display_name: "Content Violation Rate"
+    owner: trust-and-safety
+    business_definition: >
+      Fraction of reviewed content items flagged as policy violations,
+      reported to regulators in quarterly transparency reports.
+      Denominator is total content items reviewed (human + automated).
+    sql_reference: >
+      SELECT
+        COUNT(CASE WHEN decision = 'violation' THEN 1 END)::float
+        / NULLIF(COUNT(*), 0) AS violation_rate
+      FROM content_review_decisions
+      WHERE review_date BETWEEN :start_date AND :end_date
+    update_frequency: daily
+    sla_hours: 12
+    tags:
+      - transparency
+      - compliance
+      - tier-1
+    depends_on: []
+    version: "2.1.0"
+    rules:
+      - type: completeness
+        params:
+          required_columns: ["review_id", "decision", "review_date", "content_type"]
+        severity: critical
+      - type: freshness
+        severity: critical
+      - type: volume
+        params:
+          min_count: 1000
+          max_count: 10000000
+        severity: error
+      - type: range
+        params:
+          min_value: 0.0
+          max_value: 1.0
+        severity: critical
+
+  - name: proactive_detection_rate
+    display_name: "Proactive Detection Rate"
+    owner: trust-and-safety
+    business_definition: >
+      Share of policy-violating content detected by automated systems
+      before user reports. Key metric for DSA and regulatory filings.
+    sql_reference: >
+      SELECT
+        COUNT(CASE WHEN detection_source = 'automated' THEN 1 END)::float
+        / NULLIF(COUNT(*), 0) AS proactive_rate
+      FROM enforcement_actions
+      WHERE action_date BETWEEN :start_date AND :end_date
+    update_frequency: daily
+    sla_hours: 12
+    tags:
+      - transparency
+      - compliance
+      - automation
+    depends_on:
+      - content_violation_rate
+    version: "1.3.0"
+    rules:
+      - type: completeness
+        params:
+          required_columns: ["action_id", "detection_source", "action_date"]
+        severity: critical
+      - type: freshness
+        severity: error
+      - type: range
+        params:
+          min_value: 0.0
+          max_value: 1.0
+        severity: error
+      - type: distribution
+        params:
+          method: ks
+          p_value_threshold: 0.01
+        severity: warning
+
+  - name: appeal_overturn_rate
+    display_name: "Appeal Overturn Rate"
+    owner: trust-and-safety
+    business_definition: >
+      Fraction of user appeals that result in the original enforcement
+      decision being reversed. Monitored for fairness and reported
+      in transparency disclosures.
+    sql_reference: >
+      SELECT
+        COUNT(CASE WHEN appeal_outcome = 'overturned' THEN 1 END)::float
+        / NULLIF(COUNT(*), 0) AS overturn_rate
+      FROM appeals
+      WHERE resolved_date BETWEEN :start_date AND :end_date
+    update_frequency: daily
+    sla_hours: 24
+    tags:
+      - transparency
+      - appeals
+      - fairness
+    depends_on:
+      - content_violation_rate
+    version: "1.0.2"
+    rules:
+      - type: completeness
+        params:
+          required_columns: ["appeal_id", "appeal_outcome", "resolved_date"]
+        severity: error
+      - type: freshness
+        severity: error
+      - type: range
+        params:
+          min_value: 0.0
+          max_value: 1.0
+        severity: critical
+      - type: volume
+        params:
+          min_count: 50
+        severity: warning
+
+  - name: median_response_time_hours
+    display_name: "Median Response Time (Hours)"
+    owner: trust-and-safety
+    business_definition: >
+      Median wall-clock time from content report submission to
+      enforcement decision, in hours. SLA target varies by content
+      category (illegal content: 24h, other violations: 72h).
+    sql_reference: >
+      SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (decision_ts - report_ts)) / 3600
+      ) AS median_hours
+      FROM reports
+      JOIN decisions USING (report_id)
+      WHERE report_ts BETWEEN :start_date AND :end_date
+    update_frequency: daily
+    sla_hours: 6
+    tags:
+      - compliance
+      - sla
+      - operational
+    depends_on: []
+    version: "1.1.0"
+    rules:
+      - type: freshness
+        severity: critical
+      - type: range
+        params:
+          min_value: 0.0
+          max_value: 720.0
+        severity: error
+      - type: volume
+        params:
+          min_count: 100
+        severity: warning
+
+  - name: total_enforcement_actions
+    display_name: "Total Enforcement Actions"
+    owner: trust-and-safety
+    business_definition: >
+      Cumulative count of enforcement actions taken in the reporting
+      period. Must be monotonically non-decreasing within a period.
+    sql_reference: >
+      SELECT COUNT(*) AS total_actions
+      FROM enforcement_actions
+      WHERE action_date BETWEEN :start_date AND :end_date
+    update_frequency: daily
+    sla_hours: 12
+    tags:
+      - transparency
+      - compliance
+    depends_on:
+      - content_violation_rate
+      - proactive_detection_rate
+    version: "1.0.0"
+    rules:
+      - type: completeness
+        params:
+          required_columns: ["action_id", "action_date", "action_type"]
+        severity: critical
+      - type: freshness
+        severity: error
+      - type: volume
+        params:
+          min_count: 500
+        severity: error
