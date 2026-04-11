@@ -229,6 +229,12 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Related Projects
+
+- **[safetybench](https://github.com/RemiOunadjela/safetybench)** -- Benchmarking framework for evaluating content moderation models against T&S-specific metrics.
+- **[crisis-lens](https://github.com/RemiOunadjela/crisis-lens)** -- Real-time crisis detection and triage for Trust & Safety text streams.
+- **[transparency-engine](https://github.com/RemiOunadjela/transparency-engine)** -- Regulatory-compliant transparency report generation across DSA, OSA, and custom frameworks.
+
 ## License
 
 MIT
