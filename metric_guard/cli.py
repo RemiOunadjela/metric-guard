@@ -129,7 +129,12 @@ def validate(
         if output_json:
             click.echo(
                 json.dumps(
-                    {"environment": config.environment, "metrics": [], "total_metrics": 0, "total_rules": 0}
+                    {
+                        "environment": config.environment,
+                        "metrics": [],
+                        "total_metrics": 0,
+                        "total_rules": 0,
+                    }
                 )
             )
         else:

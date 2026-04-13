@@ -96,7 +96,10 @@ class TestValidateJsonFlag:
         runner = CliRunner()
         result = runner.invoke(
             cli,
-            ["validate", "--metrics", "appeal_overturn_rate", "--json", "--config", str(config_file)],
+            [
+                "validate", "--metrics", "appeal_overturn_rate",
+                "--json", "--config", str(config_file),
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
