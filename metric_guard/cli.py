@@ -92,18 +92,26 @@ def init(directory: str) -> None:
 @click.option("--metrics", default="all", help="Metric name or 'all'")
 @click.option("--env", "environment", default=None, help="Environment override")
 @click.option("--config", "config_path", default=None, help="Config file path")
-def validate(metrics: str, environment: str | None, config_path: str | None) -> None:
+@click.option("--json", "output_json", is_flag=True, help="Output results as JSON (for scripting)")
+def validate(
+    metrics: str, environment: str | None, config_path: str | None, output_json: bool
+) -> None:
     """Run validation rules against metric definitions."""
+    import json
+
     config = load_config(config_path)
     if environment:
         config.environment = environment
 
     metrics_dir = Path(config.metrics_dir)
     if not metrics_dir.exists():
-        err_console.print(
-            f"[red]Error:[/] Metrics directory '{metrics_dir}' not found. "
-            f"Run [bold]metric-guard init[/] first."
-        )
+        if output_json:
+            click.echo(json.dumps({"error": f"Metrics directory '{metrics_dir}' not found."}))
+        else:
+            err_console.print(
+                f"[red]Error:[/] Metrics directory '{metrics_dir}' not found. "
+                f"Run [bold]metric-guard init[/] first."
+            )
         sys.exit(1)
 
     from metric_guard.registry.loader import load_metrics_from_dir
@@ -111,18 +119,55 @@ def validate(metrics: str, environment: str | None, config_path: str | None) -> 
     try:
         all_metrics = load_metrics_from_dir(metrics_dir)
     except Exception as exc:
-        err_console.print(f"[red]Error loading metrics:[/] {exc}")
+        if output_json:
+            click.echo(json.dumps({"error": str(exc)}))
+        else:
+            err_console.print(f"[red]Error loading metrics:[/] {exc}")
         sys.exit(1)
 
     if not all_metrics:
-        err_console.print("[yellow]No metric definitions found.[/]")
+        if output_json:
+            click.echo(
+                json.dumps(
+                    {"environment": config.environment, "metrics": [], "total_metrics": 0, "total_rules": 0}
+                )
+            )
+        else:
+            err_console.print("[yellow]No metric definitions found.[/]")
         sys.exit(0)
 
     if metrics != "all":
         all_metrics = [m for m in all_metrics if m.name == metrics]
         if not all_metrics:
-            err_console.print(f"[red]Metric '{metrics}' not found.[/]")
+            if output_json:
+                click.echo(json.dumps({"error": f"Metric '{metrics}' not found."}))
+            else:
+                err_console.print(f"[red]Metric '{metrics}' not found.[/]")
             sys.exit(1)
+
+    if output_json:
+        result = {
+            "environment": config.environment,
+            "total_metrics": len(all_metrics),
+            "total_rules": sum(len(m.rules) for m in all_metrics),
+            "metrics": [
+                {
+                    "name": m.name,
+                    "display_name": m.display_name or m.name,
+                    "owner": m.owner,
+                    "version": m.version,
+                    "sla_hours": m.sla_hours,
+                    "update_frequency": m.update_frequency.value,
+                    "rule_count": len(m.rules),
+                    "tags": m.tags,
+                    "depends_on": m.depends_on,
+                    "status": "defined",
+                }
+                for m in all_metrics
+            ],
+        }
+        click.echo(json.dumps(result, indent=2))
+        return
 
     table = Table(title=f"Validation Results ({config.environment})")
     table.add_column("Metric", style="cyan")
