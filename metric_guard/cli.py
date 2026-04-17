@@ -174,28 +174,56 @@ def validate(
         click.echo(json.dumps(result, indent=2))
         return
 
-    table = Table(title=f"Validation Results ({config.environment})")
-    table.add_column("Metric", style="cyan")
+    from collections import Counter
+
+    from metric_guard.registry.metric import Severity
+
+    table = Table(title=f"Validation Results  ·  {config.environment}")
+    table.add_column("Metric", style="cyan", no_wrap=True)
+    table.add_column("Owner", style="dim")
     table.add_column("Rules", justify="right")
+    table.add_column("Critical", justify="right")
+    table.add_column("Error", justify="right")
+    table.add_column("Warning", justify="right")
     table.add_column("Version")
     table.add_column("SLA", justify="right")
-    table.add_column("Status")
+
+    severity_totals: Counter[str] = Counter()
 
     for m in all_metrics:
-        rule_count = len(m.rules)
+        by_sev: Counter[Severity] = Counter(r.severity for r in m.rules)
+        crit = by_sev.get(Severity.CRITICAL, 0)
+        err = by_sev.get(Severity.ERROR, 0)
+        warn = by_sev.get(Severity.WARNING, 0)
+        severity_totals["critical"] += crit
+        severity_totals["error"] += err
+        severity_totals["warning"] += warn
+
         table.add_row(
             m.display_name or m.name,
-            str(rule_count),
+            m.owner or "\u2014",
+            str(len(m.rules)),
+            f"[bold red]{crit}[/]" if crit else "[dim]\u2014[/]",
+            f"[yellow]{err}[/]" if err else "[dim]\u2014[/]",
+            f"[blue]{warn}[/]" if warn else "[dim]\u2014[/]",
             m.version,
             f"{m.sla_hours}h",
-            "[green]defined[/]",
         )
 
     console.print(table)
-    console.print(
-        f"\n[bold]{len(all_metrics)}[/] metric(s) loaded with "
-        f"[bold]{sum(len(m.rules) for m in all_metrics)}[/] validation rule(s)."
-    )
+
+    total_rules = sum(len(m.rules) for m in all_metrics)
+    summary_parts = [
+        f"[bold]{len(all_metrics)}[/] metric(s)",
+        f"[bold]{total_rules}[/] rule(s)",
+    ]
+    if severity_totals["critical"]:
+        summary_parts.append(f"[bold red]{severity_totals['critical']} critical[/]")
+    if severity_totals["error"]:
+        summary_parts.append(f"[yellow]{severity_totals['error']} error[/]")
+    if severity_totals["warning"]:
+        summary_parts.append(f"[blue]{severity_totals['warning']} warning[/]")
+    console.print("\n" + "  ·  ".join(summary_parts))
 
 
 @cli.command()

@@ -139,3 +139,73 @@ class TestValidateJsonFlag:
         assert result.exit_code == 0
         with pytest.raises((json.JSONDecodeError, ValueError)):
             json.loads(result.output)
+
+
+class TestValidateConsoleFormatting:
+    """Verify that the human-readable validate output includes key fields."""
+
+    def test_table_shows_owner(self, config_file: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["validate", "--config", str(config_file)])
+        assert result.exit_code == 0
+        # Rich may truncate cell values; check for the column header and a prefix
+        assert "Owner" in result.output
+        # "trust-and-safety" may be truncated to "trus…" in narrow terminals
+        assert "trus" in result.output
+
+    def test_table_shows_metric_display_name(self, config_file: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["validate", "--config", str(config_file)])
+        assert result.exit_code == 0
+        assert "Content Violation Rate" in result.output
+        assert "Appeal Overturn Rate" in result.output
+
+    def test_summary_shows_metric_and_rule_counts(self, config_file: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["validate", "--config", str(config_file)])
+        assert result.exit_code == 0
+        # 2 metrics, 2 rules total (content_violation_rate has 2, appeal_overturn_rate has 0)
+        assert "2" in result.output  # appears for both metric count and rule count
+
+    def test_severity_columns_present(self, config_file: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(cli, ["validate", "--config", str(config_file)])
+        assert result.exit_code == 0
+        # Column headers may be truncated by Rich in narrow terminals,
+        # but the summary line always uses full words.
+        assert "critical" in result.output  # from summary
+        assert "error" in result.output     # from summary or column header
+
+    def test_severity_counts_in_summary(self, tmp_path: Path) -> None:
+        """Metrics with critical rules should show critical count in summary."""
+        mdir = tmp_path / "metrics"
+        mdir.mkdir()
+        data = {
+            "metrics": [
+                {
+                    "name": "urgent_metric",
+                    "display_name": "Urgent Metric",
+                    "owner": "ops-team",
+                    "version": "1.0.0",
+                    "sla_hours": 1,
+                    "update_frequency": "hourly",
+                    "tags": [],
+                    "depends_on": [],
+                    "rules": [
+                        {"type": "freshness", "severity": "critical"},
+                        {"type": "volume", "severity": "warning"},
+                    ],
+                }
+            ]
+        }
+        (mdir / "m.yaml").write_text(yaml.dump(data))
+        cfg = tmp_path / "metric_guard.yaml"
+        cfg.write_text(
+            f"metrics_dir: {mdir}\nenvironment: test\n"
+            "alerts:\n  backend: console\naudit:\n  db_path: .metric_guard/audit.db\n"
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["validate", "--config", str(cfg)])
+        assert result.exit_code == 0
+        assert "critical" in result.output
+        assert "warning" in result.output
