@@ -54,13 +54,15 @@ class FreshnessRule(ValidationRule):
         threshold = timedelta(hours=max_hours)
 
         if age > threshold:
+            pct_over_sla = (age_hours - max_hours) / max_hours * 100 if max_hours > 0 else 0.0
             return self._result(
                 metric,
                 RuleStatus.FAILED,
-                f"Data is {age_hours:.1f}h old, exceeds {max_hours}h SLA",
+                f"Data is {age_hours:.1f}h old, exceeds {max_hours}h SLA (+{pct_over_sla:.1f}% over limit)",
                 details={
                     "age_hours": round(age_hours, 2),
                     "sla_hours": max_hours,
+                    "pct_over_sla": round(pct_over_sla, 1),
                     "latest_timestamp": latest.isoformat(),
                 },
                 severity=Severity.CRITICAL if age_hours > max_hours * 2 else self.default_severity,

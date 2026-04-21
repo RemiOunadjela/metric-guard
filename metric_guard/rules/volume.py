@@ -8,6 +8,15 @@ from metric_guard.registry.metric import MetricDefinition, Severity
 from metric_guard.rules.base import RuleStatus, ValidationResult, ValidationRule
 
 
+def _fmt_pct(actual: float, bound: float) -> str:
+    """Return a signed percentage deviation string, e.g. ' (−50.0%)' or ' (+25.3%)'."""
+    if bound == 0:
+        return ""
+    pct = (actual - bound) / abs(bound) * 100
+    sign = "+" if pct >= 0 else ""
+    return f" ({sign}{pct:.1f}%)"
+
+
 class VolumeRule(ValidationRule):
     """Check that data volume (row counts or aggregate values) falls within expected bounds.
 
@@ -63,16 +72,28 @@ class VolumeRule(ValidationRule):
         if count is not None:
             details["count"] = count
             if self.min_count is not None and count < self.min_count:
-                violations.append(f"count {count} below minimum {self.min_count}")
+                violations.append(
+                    f"count {count} below minimum {self.min_count}"
+                    f"{_fmt_pct(count, self.min_count)}"
+                )
             if self.max_count is not None and count > self.max_count:
-                violations.append(f"count {count} above maximum {self.max_count}")
+                violations.append(
+                    f"count {count} above maximum {self.max_count}"
+                    f"{_fmt_pct(count, self.max_count)}"
+                )
 
         if value is not None:
             details["value"] = value
             if self.min_value is not None and value < self.min_value:
-                violations.append(f"value {value:.4f} below minimum {self.min_value}")
+                violations.append(
+                    f"value {value:.4f} below minimum {self.min_value}"
+                    f"{_fmt_pct(value, self.min_value)}"
+                )
             if self.max_value is not None and value > self.max_value:
-                violations.append(f"value {value:.4f} above maximum {self.max_value}")
+                violations.append(
+                    f"value {value:.4f} above maximum {self.max_value}"
+                    f"{_fmt_pct(value, self.max_value)}"
+                )
 
         if violations:
             return self._result(

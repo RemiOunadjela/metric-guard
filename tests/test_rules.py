@@ -98,6 +98,15 @@ class TestFreshnessRule:
         result = r.validate(metric, now - timedelta(hours=48), reference_time=now)
         assert result.severity == Severity.CRITICAL
 
+    def test_stale_message_includes_pct_over_sla(self, metric: MetricDefinition) -> None:
+        # metric has sla_hours=12; age of 18h is 50% over SLA
+        r = FreshnessRule()
+        now = datetime.utcnow()
+        result = r.validate(metric, now - timedelta(hours=18), reference_time=now)
+        assert result.status == RuleStatus.FAILED
+        assert "+50.0% over limit" in result.message
+        assert result.details["pct_over_sla"] == 50.0
+
 
 class TestVolumeRule:
     def test_count_within_bounds(self, metric: MetricDefinition) -> None:
@@ -119,6 +128,24 @@ class TestVolumeRule:
         r = VolumeRule(min_count=10)
         result = r.validate(metric, {"count": 50, "value": 0.5})
         assert result.passed
+
+    def test_count_below_includes_pct(self, metric: MetricDefinition) -> None:
+        r = VolumeRule(min_count=1000)
+        result = r.validate(metric, 500)
+        assert result.status == RuleStatus.FAILED
+        assert "(-50.0%)" in result.message
+
+    def test_count_above_includes_pct(self, metric: MetricDefinition) -> None:
+        r = VolumeRule(max_count=100)
+        result = r.validate(metric, 150)
+        assert result.status == RuleStatus.FAILED
+        assert "(+50.0%)" in result.message
+
+    def test_value_below_includes_pct(self, metric: MetricDefinition) -> None:
+        r = VolumeRule(min_value=0.2)
+        result = r.validate(metric, 0.1)
+        assert result.status == RuleStatus.FAILED
+        assert "(-50.0%)" in result.message
 
 
 class TestMonotonicityRule:
