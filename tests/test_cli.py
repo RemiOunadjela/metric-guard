@@ -141,6 +141,102 @@ class TestValidateJsonFlag:
             json.loads(result.output)
 
 
+class TestStatusDescription:
+    """Verify that the status command renders business_definition in the table."""
+
+    def test_description_column_shown_when_present(self, tmp_path: Path) -> None:
+        mdir = tmp_path / "metrics"
+        mdir.mkdir()
+        data = {
+            "metrics": [
+                {
+                    "name": "violation_rate",
+                    "display_name": "Violation Rate",
+                    "owner": "trust-and-safety",
+                    "business_definition": "Fraction of reviewed items flagged as violations.",
+                    "version": "1.0.0",
+                    "sla_hours": 12,
+                    "update_frequency": "daily",
+                    "tags": [],
+                    "depends_on": [],
+                    "rules": [],
+                }
+            ]
+        }
+        (mdir / "m.yaml").write_text(yaml.dump(data))
+        cfg = tmp_path / "metric_guard.yaml"
+        cfg.write_text(
+            f"metrics_dir: {mdir}\nenvironment: test\n"
+            "alerts:\n  backend: console\naudit:\n  db_path: .metric_guard/audit.db\n"
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status"], env={"METRIC_GUARD_CONFIG": str(cfg)})
+        assert result.exit_code == 0, result.output
+        # Rich may truncate "Description" to "Descrip…" in narrow terminals
+        assert "Descrip" in result.output
+        assert "Fraction" in result.output
+
+    def test_description_truncated_at_52_chars(self, tmp_path: Path) -> None:
+        mdir = tmp_path / "metrics"
+        mdir.mkdir()
+        long_def = "A" * 60 + " extra text that should not appear"
+        data = {
+            "metrics": [
+                {
+                    "name": "long_metric",
+                    "display_name": "Long Metric",
+                    "owner": "ops",
+                    "business_definition": long_def,
+                    "version": "1.0.0",
+                    "sla_hours": 24,
+                    "update_frequency": "daily",
+                    "tags": [],
+                    "depends_on": [],
+                    "rules": [],
+                }
+            ]
+        }
+        (mdir / "m.yaml").write_text(yaml.dump(data))
+        cfg = tmp_path / "metric_guard.yaml"
+        cfg.write_text(
+            f"metrics_dir: {mdir}\nenvironment: test\n"
+            "alerts:\n  backend: console\naudit:\n  db_path: .metric_guard/audit.db\n"
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status"], env={"METRIC_GUARD_CONFIG": str(cfg)})
+        assert result.exit_code == 0
+        assert "extra text that should not appear" not in result.output
+
+    def test_description_column_hidden_when_no_definitions(self, tmp_path: Path) -> None:
+        mdir = tmp_path / "metrics"
+        mdir.mkdir()
+        data = {
+            "metrics": [
+                {
+                    "name": "bare_metric",
+                    "display_name": "Bare Metric",
+                    "owner": "ops",
+                    "version": "1.0.0",
+                    "sla_hours": 24,
+                    "update_frequency": "daily",
+                    "tags": [],
+                    "depends_on": [],
+                    "rules": [],
+                }
+            ]
+        }
+        (mdir / "m.yaml").write_text(yaml.dump(data))
+        cfg = tmp_path / "metric_guard.yaml"
+        cfg.write_text(
+            f"metrics_dir: {mdir}\nenvironment: test\n"
+            "alerts:\n  backend: console\naudit:\n  db_path: .metric_guard/audit.db\n"
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status"], env={"METRIC_GUARD_CONFIG": str(cfg)})
+        assert result.exit_code == 0
+        assert "Descrip" not in result.output
+
+
 class TestValidateConsoleFormatting:
     """Verify that the human-readable validate output includes key fields."""
 

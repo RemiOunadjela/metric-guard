@@ -319,9 +319,13 @@ def status() -> None:
         console.print("[yellow]No metrics defined yet.[/]")
         return
 
+    show_description = any(m.business_definition for m in all_metrics)
+
     table = Table()
     table.add_column("Metric", style="bold")
     table.add_column("Owner")
+    if show_description:
+        table.add_column("Description", style="dim", max_width=55)
     table.add_column("Frequency")
     table.add_column("SLA")
     table.add_column("Rules", justify="right")
@@ -329,15 +333,23 @@ def status() -> None:
     table.add_column("Version")
 
     for m in all_metrics:
-        table.add_row(
+        desc = m.business_definition.strip().replace("\n", " ") if m.business_definition else ""
+        if len(desc) > 52:
+            desc = desc[:52] + "…"
+        row = [
             m.display_name or m.name,
             m.owner or "-",
+        ]
+        if show_description:
+            row.append(desc or "—")
+        row += [
             m.update_frequency.value,
             f"{m.sla_hours}h",
             str(len(m.rules)),
             str(len(m.depends_on)),
             m.version,
-        )
+        ]
+        table.add_row(*row)
 
     console.print(table)
     console.print(f"\n[bold]{len(all_metrics)}[/] metric(s) registered.")
