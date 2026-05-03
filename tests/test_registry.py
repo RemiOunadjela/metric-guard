@@ -117,6 +117,99 @@ class TestLoader:
             load_metrics_from_dir("/nonexistent/path")
 
 
+class TestSchemaValidation:
+    def test_missing_name_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"owner": "team-x", "sla_hours": 24}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="'name' is a required property"):
+            load_metrics(yaml_file)
+
+    def test_invalid_update_frequency_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"name": "m", "update_frequency": "fortnightly"}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="is not one of"):
+            load_metrics(yaml_file)
+
+    def test_invalid_rule_type_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"name": "m", "rules": [{"type": "unknown_rule"}]}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="is not one of"):
+            load_metrics(yaml_file)
+
+    def test_invalid_severity_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"name": "m", "rules": [{"type": "freshness", "severity": "blocker"}]}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="is not one of"):
+            load_metrics(yaml_file)
+
+    def test_sla_hours_wrong_type_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"name": "m", "sla_hours": "not-a-number"}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="is not of type"):
+            load_metrics(yaml_file)
+
+    def test_tags_not_list_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"name": "m", "tags": "compliance"}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="is not of type"):
+            load_metrics(yaml_file)
+
+    def test_metrics_not_list_raises(self, tmp_path: Path) -> None:
+        data = {"metrics": "not-a-list"}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="must contain a list"):
+            load_metrics(yaml_file)
+
+    def test_error_message_includes_metric_name(self, tmp_path: Path) -> None:
+        data = {"metrics": [{"name": "bad_metric", "update_frequency": "fortnightly"}]}
+        yaml_file = tmp_path / "bad.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        with pytest.raises(ValueError, match="bad_metric"):
+            load_metrics(yaml_file)
+
+    def test_valid_metric_passes_schema(self, tmp_path: Path) -> None:
+        data = {
+            "metrics": [
+                {
+                    "name": "my_metric",
+                    "owner": "team-a",
+                    "update_frequency": "daily",
+                    "sla_hours": 12.0,
+                    "tags": ["compliance"],
+                    "rules": [{"type": "freshness", "severity": "error"}],
+                }
+            ]
+        }
+        yaml_file = tmp_path / "valid.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        metrics = load_metrics(yaml_file)
+        assert len(metrics) == 1
+        assert metrics[0].name == "my_metric"
+
+    def test_all_update_frequencies_valid(self, tmp_path: Path) -> None:
+        for freq in ["hourly", "daily", "weekly", "monthly", "quarterly"]:
+            data = {"metrics": [{"name": "m", "update_frequency": freq}]}
+            yaml_file = tmp_path / f"{freq}.yaml"
+            yaml_file.write_text(yaml.dump(data))
+            assert load_metrics(yaml_file)[0].name == "m"
+
+    def test_all_rule_types_valid(self, tmp_path: Path) -> None:
+        rule_types = ["completeness", "freshness", "volume", "range", "distribution",
+                      "consistency", "monotonicity", "custom"]
+        data = {"metrics": [{"name": "m", "rules": [{"type": t} for t in rule_types]}]}
+        yaml_file = tmp_path / "all_rules.yaml"
+        yaml_file.write_text(yaml.dump(data))
+        metrics = load_metrics(yaml_file)
+        assert len(metrics[0].rules) == len(rule_types)
+
+
 class TestDependencyGraph:
     def test_topological_order(self) -> None:
         metrics = [
